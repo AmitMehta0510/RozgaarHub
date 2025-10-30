@@ -33,6 +33,10 @@ const userSchema = new mongoose.Schema(
       ref: "Subscription",
     },
     isActive: { type: Boolean, default: true },
+    otp: {
+      hash: { type: String },
+      expiresAt: { type: Date },
+    },
   },
   { timestamps: true }
 );

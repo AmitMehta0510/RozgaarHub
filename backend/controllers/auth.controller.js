@@ -41,7 +41,9 @@ export const verifyOtp = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({ phone });
   if (!user || !user.otp)
-    return res.status(400).json({ success: false, message: "No OTP requested" });
+    return res
+      .status(400)
+      .json({ success: false, message: "No OTP requested" });
   if (dayjs().isAfter(dayjs(user.otp.expiresAt)))
     return res.status(400).json({ success: false, message: "OTP expired" });
 
@@ -58,7 +60,7 @@ export const verifyOtp = asyncHandler(async (req, res) => {
 
   await RefreshToken.create({
     user: user._id,
-    token: refreshToken.hash,
+    token: refreshToken.raw,
     deviceInfo: deviceInfo || {},
     expiresAt: refreshToken.expiresAt,
   });
@@ -76,7 +78,7 @@ export const verifyOtp = asyncHandler(async (req, res) => {
   });
 });
 
-// -------------------- EMAIL/PASSWORD LOGIN --------------------
+// -------------------- EMAIL REGISTER --------------------
 export const register = asyncHandler(async (req, res) => {
   const { name, email, password, phone, role = "worker" } = req.body;
   if (!email || !password || !name)
@@ -89,14 +91,20 @@ export const register = asyncHandler(async (req, res) => {
       .json({ success: false, message: "Email already used" });
 
   const hashed = await bcrypt.hash(password, await bcrypt.genSalt(10));
-  const user = await User.create({ name, email, password: hashed, phone, role });
+  const user = await User.create({
+    name,
+    email,
+    password: hashed,
+    phone,
+    role,
+  });
 
   const accessToken = generateAccessToken({ id: user._id, role: user.role });
   const refreshToken = generateRefreshToken();
 
   await RefreshToken.create({
     user: user._id,
-    token: refreshToken.hash,
+    token: refreshToken.raw,
     expiresAt: refreshToken.expiresAt,
   });
 
@@ -107,6 +115,7 @@ export const register = asyncHandler(async (req, res) => {
   });
 });
 
+// -------------------- LOGIN --------------------
 export const login = asyncHandler(async (req, res) => {
   const { email, password, deviceInfo } = req.body;
   if (!email || !password)
@@ -126,7 +135,7 @@ export const login = asyncHandler(async (req, res) => {
 
   await RefreshToken.create({
     user: user._id,
-    token: refreshToken.hash,
+    token: refreshToken.raw,
     deviceInfo,
     expiresAt: refreshToken.expiresAt,
   });
@@ -138,7 +147,7 @@ export const login = asyncHandler(async (req, res) => {
   });
 });
 
-// -------------------- TOKEN MANAGEMENT --------------------
+// -------------------- REFRESH TOKEN --------------------
 export const refresh = asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
   if (!refreshToken)
@@ -146,9 +155,9 @@ export const refresh = asyncHandler(async (req, res) => {
       .status(400)
       .json({ success: false, message: "Refresh token required" });
 
-  const found = await RefreshToken.findOne({
-    token: RefreshToken.hashToken(refreshToken),
-  });
+  const hashed = RefreshToken.hashToken(refreshToken);
+  const found = await RefreshToken.findOne({ token: hashed });
+
   if (!found || dayjs().isAfter(found.expiresAt))
     return res
       .status(401)
@@ -161,7 +170,7 @@ export const refresh = asyncHandler(async (req, res) => {
       .json({ success: false, message: "Invalid refresh token" });
 
   const newRefresh = generateRefreshToken();
-  found.token = newRefresh.hash;
+  found.token = newRefresh.raw;
   found.expiresAt = newRefresh.expiresAt;
   await found.save();
 
@@ -173,13 +182,24 @@ export const refresh = asyncHandler(async (req, res) => {
   });
 });
 
+// -------------------- LOGOUT --------------------
 export const logout = asyncHandler(async (req, res) => {
-  const { refreshToken } = req.body;
-  if (refreshToken)
+  const refreshToken = req.body?.refreshToken; // ✅ Safe destructuring
+
+  if (refreshToken) {
+    // Delete this specific refresh token
     await RefreshToken.deleteOne({
       token: RefreshToken.hashToken(refreshToken),
     });
-  else if (req.user) await RefreshToken.deleteMany({ user: req.user._id });
+  } else if (req.user) {
+    // Fallback: delete all tokens of this user
+    await RefreshToken.deleteMany({ user: req.user._id });
+  } else {
+    return res.status(400).json({
+      success: false,
+      message: "No refresh token or authenticated user found",
+    });
+  }
 
   res.json({ success: true, message: "Logged out successfully" });
 });

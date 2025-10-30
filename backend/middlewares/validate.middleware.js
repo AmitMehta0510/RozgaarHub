@@ -1,27 +1,21 @@
-// backend/middlewares/validate.js
-export const validate = (schema) => {
-  return (req, res, next) => {
-    try {
-      const { error } = schema.validate(req.body);
-      if (error) {
-        return res.status(400).json({
-          success: false,
-          error: {
-            code: 400,
-            message: error.details[0].message,
-          },
-        });
-      }
-      next();
-    } catch (err) {
-      console.error("Validation middleware error:", err);
-      res.status(500).json({
-        success: false,
-        error: {
-          code: 500,
-          message: "Internal server error during validation",
-        },
-      });
-    }
-  };
+// backend/middlewares/validate.middleware.js
+import { validationResult } from "express-validator";
+import { logger } from "../utils/logger.js";
+
+export const validate = (req, res, next) => {
+  const errors = validationResult(req);
+
+  if (!errors.isEmpty()) {
+    logger.warn(`[VALIDATION ERROR] ${JSON.stringify(errors.array())}`);
+    return res.status(400).json({
+      success: false,
+      errors: errors.array().map((err) => ({
+        field: err.path,
+        message: err.msg,
+      })),
+    });
+  }
+
+  logger.info(`[VALIDATION SUCCESS] ${req.method} ${req.originalUrl}`);
+  next();
 };
