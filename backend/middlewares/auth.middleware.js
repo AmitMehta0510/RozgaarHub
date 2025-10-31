@@ -34,8 +34,9 @@ export const authMiddleware = async (req, res, next) => {
 };
 
 // Optional: Role-based middleware
-export const requireRole = (role) => (req, res, next) => {
-  if (!req.user || req.user.role !== role)
+export const requireRole = (roles) => (req, res, next) => {
+  console.log("User Role:", req.user ? req.user.role : "No user");
+  if (!req.user || !roles.includes(req.user.role))
     return res.status(403).json({ success: false, message: "Access denied" });
   next();
 };

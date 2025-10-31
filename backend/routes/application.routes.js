@@ -6,8 +6,7 @@ import {
   updateApplicationStatus,
   withdrawApplication,
 } from "../controllers/application.controller.js";
-import { authMiddleware } from "../middlewares/auth.middleware.js";
-import { roleMiddleware } from "../middlewares/role.middleware.js";
+import { authMiddleware, requireRole } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
@@ -50,7 +49,7 @@ router.get(
 router.patch(
   "/:id/status",
   authMiddleware,
-  roleMiddleware(["employer", "admin"]),
+  requireRole(["recruiter", "admin"]),
   [
     param("id").isMongoId().withMessage("Invalid Application ID"),
     body("status")
